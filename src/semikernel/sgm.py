@@ -28,10 +28,13 @@ class SemiKernelSGM(object):
         self.census_img0 = None
         self.census_img1 = None
 
-        self.path_num = 1 # Implementing only one path for the moment (horizontal one, later the vertical one)
+        self.path_num = 1  # Implementing only one path for the moment (horizontal one, later the vertical one)
+        self.P_init = 0
+        self.P_gap = 128
         self.P = np.array([4, 8, 16, 32, 64])
-        self.W = np.array([])   #TODO: set the weighting array, and determine the weiting number
-        self.number_of_neighbours = 8
+        self.number_of_neighbours_depth_aggregation = 2 + 2 * len(self.P)
+        self.W = np.array([])   #TODO: set the weighting array, and determine the weighting number
+        self.number_of_neighbours_space_weighting = 8
         self.costVolume_L = None
         self.costVolume_R = None
 
@@ -53,6 +56,7 @@ class SemiKernelSGM(object):
 
         :param img0: base image
         :param img1: matching image
+        :param scaling: if not None, a float between [0, 1] is expected.
         :return: None
         """
         if scaling is None:
@@ -74,6 +78,12 @@ class SemiKernelSGM(object):
 
         self.img_dimension = self.img0.shape
 
+    def initialize_GPU_storage(self):
+        """
+        This function initialize GPU storage according to the parameter set to the class instance i.e. the parameters
+        in 'self'
+        :return: None
+        """
         # -------- initialise cost volume: costVolume and related ----------
         self.costVolume_L = pt.cuda.HalfTensor(self.path_num, self.disp_num + 2*self.disp_pad,
                                                self.img_dimension[0] + 2*self.height_pad,
@@ -82,36 +92,58 @@ class SemiKernelSGM(object):
                                                self.img_dimension[0] + 2*self.height_pad,
                                                self.img_dimension[1] + 2*self.width_pad).zero_()
 
-        self.temp_depth_L_horizontal = pt.cuda.HalfTensor(self.path_num, self.disp_num + 2*self.disp_pad,
-                                               self.img_dimension[0] + 2*self.height_pad)
-        self.temp_depth_R_horizontal = pt.cuda.HalfTensor(self.path_num, self.disp_num + 2*self.disp_pad,
-                                               self.img_dimension[0] + 2*self.height_pad)
-        self.temp_depth_L_vertical = pt.cuda.HalfTensor(self.path_num, self.disp_num + 2*self.disp_pad,
-                                                        self.img_dimension[1] + 2*self.width_pad)
-        self.temp_depth_R_vertical = pt.cuda.HalfTensor(self.path_num, self.disp_num + 2*self.disp_pad,
-                                                        self.img_dimension[1] + 2*self.width_pad)
-        self.temp_space_L_horizontal = pt.cuda.HalfTensor(self.path_num, self.number_of_neighbours,
+        self.temp_depth_L_horizontal = pt.cuda.HalfTensor(self.path_num,
+                                                          self.number_of_neighbours_depth_aggregation,
                                                           self.disp_num + 2*self.disp_pad,
                                                           self.img_dimension[0] + 2*self.height_pad)
-        self.temp_space_R_horizontal = pt.cuda.HalfTensor(self.path_num, self.number_of_neighbours,
+
+        self.temp_depth_R_horizontal = pt.cuda.HalfTensor(self.path_num,
+                                                          self.number_of_neighbours_depth_aggregation,
                                                           self.disp_num + 2*self.disp_pad,
                                                           self.img_dimension[0] + 2*self.height_pad)
-        self.temp_space_L_vertical = pt.cuda.HalfTensor(self.path_num, self.number_of_neighbours,
-                                                        self.disp_num + 2*self.disp_pad,
-                                                        self.img_dimension[1] + 2*self.width_pad)
-        self.temp_space_R_vertical = pt.cuda.HalfTensor(self.path_num, self.number_of_neighbours,
+
+        self.temp_depth_L_vertical = pt.cuda.HalfTensor(self.path_num,
+                                                        self.number_of_neighbours_depth_aggregation,
                                                         self.disp_num + 2*self.disp_pad,
                                                         self.img_dimension[1] + 2*self.width_pad)
 
-        self.unary_cost_L = pt.cuda.HalfTensor(self.disp_num + 2 * self.disp_pad, self.img_dimension[0] + 2 * self.height_pad,
+        self.temp_depth_R_vertical = pt.cuda.HalfTensor(self.path_num,
+                                                        self.number_of_neighbours_depth_aggregation,
+                                                        self.disp_num + 2*self.disp_pad,
+                                                        self.img_dimension[1] + 2*self.width_pad)
+
+        self.temp_space_L_horizontal = pt.cuda.HalfTensor(self.path_num,
+                                                          self.number_of_neighbours_space_weighting,
+                                                          self.disp_num + 2 * self.disp_pad,
+                                                          self.img_dimension[0] + 2 * self.height_pad)
+
+        self.temp_space_R_horizontal = pt.cuda.HalfTensor(self.path_num,
+                                                          self.number_of_neighbours_space_weighting,
+                                                          self.disp_num + 2 * self.disp_pad,
+                                                          self.img_dimension[0] + 2 * self.height_pad)
+
+        self.temp_space_L_vertical = pt.cuda.HalfTensor(self.path_num,
+                                                        self.number_of_neighbours_space_weighting,
+                                                        self.disp_num + 2 * self.disp_pad,
+                                                        self.img_dimension[1] + 2 * self.width_pad)
+
+        self.temp_space_R_vertical = pt.cuda.HalfTensor(self.path_num,
+                                                        self.number_of_neighbours_space_weighting,
+                                                        self.disp_num + 2 * self.disp_pad,
+                                                        self.img_dimension[1] + 2 * self.width_pad)
+
+        self.unary_cost_L = pt.cuda.HalfTensor(self.disp_num + 2 * self.disp_pad,
+                                               self.img_dimension[0] + 2 * self.height_pad,
                                                self.img_dimension[1] + 2 * self.width_pad).zero_() + 1023
-        self.unary_cost_R = pt.cuda.HalfTensor(self.disp_num + 2 * self.disp_pad, self.img_dimension[0] + 2 * self.height_pad,
+
+        self.unary_cost_R = pt.cuda.HalfTensor(self.disp_num + 2 * self.disp_pad,
+                                               self.img_dimension[0] + 2 * self.height_pad,
                                                self.img_dimension[1] + 2 * self.width_pad).zero_() + 1023
 
     def set_disp_range(self, d_min, d_max):
         """
         disparity range shall be set through this function, and this function ALONE, as d_min, d_max and d_num shall
-        always update simutanously.
+        always update simultaneously.
         :param d_min: minimum disparity
         :param d_max: maximum disparity
         :return: None
@@ -119,9 +151,32 @@ class SemiKernelSGM(object):
         self.d_min = d_min
         self.d_max = d_max
         self.disp_num = self.d_max - self.d_min + 1
+        print("Disparity parameters are re-set:  d_min: %i, d_max: %i, disp_num: %i" % (self.d_min, self.d_max, self.disp_num))
+        # TODO: reset the d related tensors
+
+    def set_P_sequence(self, P_init=None, P_gap=None, P=None):
+        """
+        it sets values of P. Once the values are reset, the temp function shall be re-initialized. Also, the
+        attribute describing the number of neighbours in depth aggregation require update.
+        :param P_init: the penalty parameter when disparity shift is zero
+        :param P_gap: the penalty parameter when disparity is assumed to be dis-continued.
+        :param P: a vector of p values regarding different level of dis-continuity.
+        :return: None
+        """
+        if P_init is not None:
+            self.P_init = P_init
+        if P_gap is not None:
+            self.P_gap = P_gap
+        if P is not None:
+            self.P = P
+            self.number_of_neighbours_depth_aggregation = 2 + len(P) * 2
+        print("P is updated: P_init: %.4f, P_gap: %.4f, P: %s, #P: %i" % (self.P_init, self.P_gap, str(self.P),
+                                                                          self.number_of_neighbours_depth_aggregation))
+        # TODO: reset the related tensors if needed.
 
     def compute_unary_cost(self, census_window_size=(7, 9), r=None, R=None):
         """
+        unary cost; census transformed image
         it computes unary cost (based on census transform) on both images. Aside the unary cost, it also provides the
         census transformed images.
         :param census_window_size: the window of census transformation, if not given. Taking original values in
@@ -131,4 +186,8 @@ class SemiKernelSGM(object):
         :return: None
         """
         pass
+
+    def horizontal_path_swiping(self):
+        pass
+        # TODO: it aims to perform the global single path search along horizontal direction
 
