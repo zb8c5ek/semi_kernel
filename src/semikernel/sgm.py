@@ -191,3 +191,112 @@ class SemiKernelSGM(object):
         pass
         # TODO: it aims to perform the global single path search along horizontal direction
 
+    def calculate_pairwise_cost_LR(self, census_h, census_w, r=None, R=None):
+        # TODO imported, need to be adapted
+        """
+        # Modification Done, testing remains.
+        As padding parameter is added. The true disparity should be calculated regarding both the padding and the shift
+        from r to R.
+        :return: self.unit_cost would be updated accordingly. Together with self.unit_costLR, which is the M->B mirror.
+        """
+        last_time = time.time()
+        census_img0 = self.census_transform(census_h, census_w, self.matching_img0)
+        census_img1 = self.census_transform(census_h, census_w, self.matching_img1)
+
+        if r is None:
+            r = self.d_min
+        if R is None:
+            R = self.d_max
+
+        for d in np.arange(r, R + 1):
+
+            i = d - r + self.disp_pad
+
+            if d < 0:
+                # print(self.census_img0[:, :, -d:].size())
+                # print(self.census_img1[:, :, :d].size())
+                self.unit_cost_L[i, self.height_pad:-self.height_pad,
+                -d + self.width_pad:-self.width_pad] = torch.sum(
+                    census_img0[:, :, -d:] != census_img1[:, :, :d], 0
+                )
+            elif d > 0:
+                # print(self.census_img0[:, :, :-d].size())
+                # print(self.census_img1[:, :, d:].size())
+                self.unit_cost_L[i, self.height_pad:-self.height_pad,
+                self.width_pad:-(d + self.width_pad)] = torch.sum(
+                    census_img0[:, :, :-d] != census_img1[:, :, d:], 0
+                )
+            else:
+                self.unit_cost_L[i, self.height_pad:-self.height_pad,
+                self.width_pad:-self.width_pad] = torch.sum(
+                    census_img0[:, :, :] != census_img1[:, :, :], 0
+                )
+
+            d_LR = -d
+            # -R : r
+            i_LR = d_LR + R + self.disp_pad
+
+            if d_LR < 0:
+                self.unit_cost_R[i_LR, self.height_pad:-self.height_pad,
+                -d_LR + self.width_pad:-self.width_pad] = torch.sum(
+                    census_img1[:, :, -d_LR:] != census_img0[:, :, :d_LR], 0
+                )
+            elif d_LR > 0:
+                self.unit_cost_R[i_LR, self.height_pad:-self.height_pad,
+                self.width_pad:-(d_LR + self.width_pad)] = torch.sum(
+                    census_img1[:, :, :-d_LR] != census_img0[:, :, d_LR:], 0
+                )
+            else:
+                self.unit_cost_R[i_LR, self.height_pad:-self.height_pad,
+                self.width_pad:-self.width_pad] = torch.sum(
+                    census_img1[:, :, :] != census_img0[:, :, :], 0
+                )
+
+        print(
+                'Census transformation and Unary-Cost Volume Preparation accomplished in: %.4f' % (
+                time.time() - last_time))
+        self.census_img0 = census_img0
+        self.census_img1 = census_img1
+
+    def census_transform(self, window_h, window_w, img, cuda=True):
+        # TODO: imported, need to be adapted
+        """
+        This function perform census transform. As padding parameter is determined by window_h and window_w, henceforth
+        the function is self-contained / standable.
+        :param window_w:
+        :param window_h:
+        :param img0:
+        :param img1:
+        :return:
+        """
+        # Images are transformed into tensor, so that the manipulation is in PT way.
+
+        w_pad_0 = np.int(np.floor(window_w / 2))
+        w_pad_1 = np.int(np.floor(window_w / 2 - (1 - (window_w % 2))))
+
+        h_pad_0 = np.int(np.floor(window_h / 2))
+        h_pad_1 = np.int(np.floor(window_h / 2 - (1 - (window_h % 2))))
+
+        pad_img = np.array(np.pad(img, ((h_pad_0, h_pad_1), (w_pad_0, w_pad_1)), 'constant', constant_values=(0, 0)),
+                           dtype=np.float32)
+
+        if cuda:
+            pad_img_pt = torch.from_numpy(pad_img).cuda()
+            census_img = torch.cuda.ByteTensor(window_w * window_h, img.shape[0], img.shape[1]).zero_()
+        else:
+            pad_img_pt = torch.from_numpy(pad_img)
+            census_img = torch.ByteTensor(window_w * window_h, img.shape[0], img.shape[1]).zero_()
+        if cuda:
+            census_img = census_img.cuda()
+
+        counter_channel = 0
+
+        for w in np.arange(-w_pad_0, w_pad_1 + 1, dtype=np.int32):
+            for h in np.arange(-h_pad_0, h_pad_1 + 1, dtype=np.int32):
+                census_img[counter_channel, :, :] = (pad_img_pt[h_pad_0:-h_pad_1, w_pad_0:-w_pad_1] -
+                                                     pad_img_pt[h_pad_0 + h:h_pad_0 + h + img.shape[0],
+                                                     w_pad_0 + w:w_pad_0 + w + img.shape[1]]) >= 0
+                counter_channel += 1
+
+        return census_img
+
