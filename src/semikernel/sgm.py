@@ -1,7 +1,22 @@
 import numpy as np
 import torch as pt
 import cv2  # TODO: opencv is usable yet far from flexible and well-maintained. try to self-produce corresponding functions.
+__author__ = 'Xuanli CHEN'
+"""
+Xuanli Chen
+version: 4.0.0 beta
+PhD student at PSI-ESAT, KU Leuven
+Supervisor: Prof. Luc Van Gool
+Research Domain: Computer Vision, Machine Learning
 
+Address:
+Kasteelpark Arenberg 10 - bus 2441
+B-3001 Heverlee
+Belgium
+
+Group website: http://www.esat.kuleuven.be/psi/visics
+LinkedIn: https://be.linkedin.com/in/xuanlichen
+"""
 
 class SemiKernelSGM(object):
     def __init__(self):
