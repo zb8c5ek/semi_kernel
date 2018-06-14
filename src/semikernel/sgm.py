@@ -33,7 +33,7 @@ class SemiKernelSGM(object):
         self.P_gap = 128
         self.P = np.array([4, 8, 16, 32, 64])
         self.number_of_neighbours_depth_aggregation = 2 + 2 * len(self.P)
-        self.W = np.array([])   #TODO: set the weighting array, and determine the weighting number
+        self.W = np.array([])   # TODO: set the weighting array, and determine the weighting number
         self.number_of_neighbours_space_weighting = 8
         self.costVolume_L = None
         self.costVolume_R = None
