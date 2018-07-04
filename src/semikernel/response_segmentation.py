@@ -1,6 +1,6 @@
 import numpy as np
 import torch as pt
-import cPickle as pickle
+import pickle
 from src.utils import visual, convert
 import time
 import cv2 as cv
@@ -20,9 +20,13 @@ Belgium
 Group website: http://www.esat.kuleuven.be/psi/visics
 LinkedIn: https://be.linkedin.com/in/xuanlichen
 """
-fn_data_raw_res = '../../data/raw_res'
+fn_data_raw_res = '../../data/raw_res_pickle'
 
 start_time = time.time()
+# --- grammar for dump data using pickle ---
+# with open(fn_data_raw_res, 'wb') as fn:
+#     pickle.dump(data_dict, fn, encoding=bytes)
+
 with open(fn_data_raw_res, 'rb') as fn:
     data_dict = pickle.load(fn)
 print("Loading data cost %.4f s." % (time.time() - start_time))
