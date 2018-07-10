@@ -16,4 +16,15 @@ Belgium
 Group website: http://www.esat.kuleuven.be/psi/visics
 LinkedIn: https://be.linkedin.com/in/xuanlichen
 """
-def gaussianFiltering
+
+
+def gaussian_filtering():
+    pass
+
+
+def median_filtering():
+    pass
+
+
+def sobel_filtering():
+    pass
