@@ -52,24 +52,27 @@ def warping_with_given_homography(ori_img, H, preserve, interpolation, cuda=True
     This function bases the Cartesian system that: each pixel H[x, y, 1]' = [tx', ty', t]', i.e. the first row of
     homography maps the x coordinates(column).
 
-    #TODO: check the unresolved question mark '?'
     :param ori_img: the image to be warped. (in numpy format)
     :param H: homography in a 3x3 matrix (in numpy format)
     :param preserve: i) four coordinates, saying [y_start, y_end, x_start, x_end], ii) True: full frame iii) False: make
-    the outcome image the same size as input image. Coordinates using the same Cartesian(?) system as input image.
+    the outcome image the same size as input image. Coordinates using the same Cartesian system as input image.
     :param cuda: whether on cuda processing or not.
     :param interpolation: i) bilinear ii) cubic
-    :return: warped_image, shifting parameter (?)
+    :return: warped_image, shifting parameter
     """
     X, Y = mesh_xy_coordinates_of_given_2D_dimensions(ori_img.shape)
     T = np.ones(X.shape, dtype=np.float)
     cartesian_coordinates = np.stack([X, Y, T], axis=-1)  # -1 means the last axis, R x C x 3
-
+    H_inv = np.linalg.inv(H)
+    H_inv /= H_inv[-1, -1]
     if cuda:
         coordinates_PT = pt.from_numpy(cartesian_coordinates).half().cuda()
         H_PT = pt.from_numpy(H).half().cuda()
+        H_inv_PT = pt.from_numpy(H_PT).half().cuda()
     else:
-        raise ValueError('CPU version is not implemented.')
+        coordinates_PT = pt.from_numpy(cartesian_coordinates).half()
+        H_PT = pt.from_numpy(H).half()
+        H_inv_PT = pt.from_numpy(H_PT).half()
 
     # ---------- Calculate for warpped coordinates ------------ #
     temp_coordinates_PT = coordinates_PT.view(coordinates_PT.size(0)*coordinates_PT.size(1), 3).unsqueeze(-1)
@@ -79,5 +82,17 @@ def warping_with_given_homography(ori_img, H, preserve, interpolation, cuda=True
     coordinates_PT_warped[:, :, 0] /= coordinates_PT_warped[:, :, -1]
     coordinates_PT_warped[:, :, 1] /= coordinates_PT_warped[:, :, -1]
 
-    # ---------- Trace back into original image coordinates, with padding and shift ------------ #
+    # ---------- Determine coordinates range in the target image ------------ #
+    if cuda:
+        min_x = np.min(coordinates_PT_warped[:, :, 0].cpu().numpy())
+        min_y = np.min(coordinates_PT_warped[:, :, 1].cpu().numpy())
+        max_x = np.max(coordinates_PT_warped[:, :, 0].cpu().numpy())
+        max_y = np.max(coordinates_PT_warped[:, :, 1].cpu().numpy())
+    else:
+        min_x = np.min(coordinates_PT_warped[:, :, 0].numpy())
+        min_y = np.min(coordinates_PT_warped[:, :, 1].numpy())
+        max_x = np.max(coordinates_PT_warped[:, :, 0].numpy())
+        max_y = np.max(coordinates_PT_warped[:, :, 1].numpy())
+
+    # so far, the target region is decided i.e. where coordinates would be in the target frame. Now shall trace back.
 
