@@ -19,6 +19,21 @@ LinkedIn: https://be.linkedin.com/in/xuanlichen
 """
 
 
+class warpingImage(object):
+    """
+    this class aims to preserve / represent as much information on warping plane as possible.
+    it saves image as i) image plane and ii) coordinates, to tackle the warping coordinates change problem.
+    """
+    def __init__(self):
+        full_img = None
+        full_img_coor = None
+        direct_img = None
+        direct_img_coor = None
+        roi_img = None
+        roi_img_coor = None
+        origin_size = None
+
+
 def mesh_xy_coordinates_of_given_2D_dimensions(dimensions):
     """
     For a given dimension, say (X, Y), it returns a two 2D matrix. The first matrix contains the x coordinates of the
@@ -84,10 +99,10 @@ def warping_with_given_homography(ori_img, H, preserve, interpolation, cuda=True
 
     # ---------- Determine coordinates range in the target image ------------ #
     if cuda:
-        min_x = np.min(coordinates_PT_warped[:, :, 0].cpu().numpy())
-        min_y = np.min(coordinates_PT_warped[:, :, 1].cpu().numpy())
-        max_x = np.max(coordinates_PT_warped[:, :, 0].cpu().numpy())
-        max_y = np.max(coordinates_PT_warped[:, :, 1].cpu().numpy())
+        min_x = np.floor(np.min(coordinates_PT_warped[:, :, 0].cpu().numpy()))
+        min_y = np.floor(np.min(coordinates_PT_warped[:, :, 1].cpu().numpy()))
+        max_x = np.ceil(np.max(coordinates_PT_warped[:, :, 0].cpu().numpy()))
+        max_y = np.ceil(np.max(coordinates_PT_warped[:, :, 1].cpu().numpy()))
     else:
         min_x = np.min(coordinates_PT_warped[:, :, 0].numpy())
         min_y = np.min(coordinates_PT_warped[:, :, 1].numpy())
@@ -95,4 +110,5 @@ def warping_with_given_homography(ori_img, H, preserve, interpolation, cuda=True
         max_y = np.max(coordinates_PT_warped[:, :, 1].numpy())
 
     # so far, the target region is decided i.e. where coordinates would be in the target frame. Now shall trace back.
+
 
