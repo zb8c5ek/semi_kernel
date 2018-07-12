@@ -71,9 +71,13 @@ def warping_with_given_homography(ori_img, H, preserve, interpolation, cuda=True
     else:
         raise ValueError('CPU version is not implemented.')
 
-    # TODO : it should be H x X not the other way around. (perhaps play with the stack axis?)
-    coordinates_PT_warped = pt.bmm(coordinates_PT, H_PT.unsqueeze(0).expand(coordinates_PT.size(0), *H_PT.size()))
+    # ---------- Calculate for warpped coordinates ------------ #
+    temp_coordinates_PT = coordinates_PT.view(coordinates_PT.size(0)*coordinates_PT.size(1), 3).unsqueeze(-1)
+    coordinates_PT_warped = pt.bmm(H_PT.unsqueeze(0).expand(temp_coordinates_PT.size(0), *H_PT.size()),
+                                   temp_coordinates_PT).view(*coordinates_PT.size())
 
-    # TODO: how to use coordinates back into an array. how to match these coordinates.
     coordinates_PT_warped[:, :, 0] /= coordinates_PT_warped[:, :, -1]
     coordinates_PT_warped[:, :, 1] /= coordinates_PT_warped[:, :, -1]
+
+    # ---------- Trace back into original image coordinates, with padding and shift ------------ #
+
