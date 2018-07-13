@@ -23,15 +23,49 @@ class warpingImage(object):
     """
     this class aims to preserve / represent as much information on warping plane as possible.
     it saves image as i) image plane and ii) coordinates, to tackle the warping coordinates change problem.
+    the coordinates are determined in the warping image plane from previous image. and the coordinates represents
+    where the corresponding image is cropped.
+    coordinates are in the format of [min_x, min_y, max_x, max_y]
     """
-    def __init__(self):
-        full_img = None
-        full_img_coor = None
-        direct_img = None
-        direct_img_coor = None
-        roi_img = None
-        roi_img_coor = None
-        origin_size = None
+    def __init__(self, origin_size=None, full_img_coor=None):
+        self.full_img = None     # preserve the full original image in warped image plane
+        self.full_img_coor = None    # in int
+        self.direct_img = None   # the image with the same center and same size as original image
+        self.direct_img_coor = None  # in int
+        self.roi_img = None      # the image with ROI region preserved
+        self.roi_img_coor = None     # in int
+        self.origin_size = None
+
+        if full_img_coor is not None:
+            self.full_img_coor = full_img_coor
+        if origin_size is not None:
+            self.origin_size = origin_size
+
+    def set_direct_img_coors(self, direct_img_coor=None):
+        """
+        it calculates the size of direct img, to have the exact size of self.origin_size and share the same center with
+        self.full_img
+        pre-requirement: self.full_img_coor and self.origin_size must be assigned already.
+        :return:
+        """
+        if direct_img_coor is not None:
+            self.direct_img_coor = direct_img_coor
+        else:
+
+            center_x = np.int(np.floor(0.5 * (self.full_img_coor[0] + self.full_img_coor[2])))
+            center_y = np.int(np.floor(0.5 * (self.full_img_coor[1] + self.full_img_coor[3])))
+
+            if self.origin_size[0] % 2 == 1:
+                self.direct_img_coor = np.array([center_x - np.int(np.floor(self.origin_size[0] / 2)),
+                                                 center_y - np.int(np.floor(self.origin_size[1] / 2)),
+                                                 center_x + np.int(np.floor(self.origin_size[0] / 2)),
+                                                 center_y + np.int(np.floor(self.origin_size[1] / 2))])
+            else:
+                self.direct_img_coor = np.array([center_x - np.int(np.floor(self.origin_size[0] / 2)),
+                                                 center_y - np.int(np.floor(self.origin_size[1] / 2)),
+                                                 center_x + np.int(np.floor(self.origin_size[0] / 2)) - 1,
+                                                 center_y + np.int(np.floor(self.origin_size[1] / 2)) - 1])
+
 
 
 def mesh_xy_coordinates_of_given_2D_dimensions(dimensions):
@@ -74,6 +108,7 @@ def warping_with_given_homography(ori_img, H, preserve, interpolation, cuda=True
     :param cuda: whether on cuda processing or not.
     :param interpolation: i) bilinear ii) cubic
     :return: warped_image, shifting parameter
+
     """
     X, Y = mesh_xy_coordinates_of_given_2D_dimensions(ori_img.shape)
     T = np.ones(X.shape, dtype=np.float)
@@ -110,5 +145,14 @@ def warping_with_given_homography(ori_img, H, preserve, interpolation, cuda=True
         max_y = np.max(coordinates_PT_warped[:, :, 1].numpy())
 
     # so far, the target region is decided i.e. where coordinates would be in the target frame. Now shall trace back.
+
+    warped_img = warpingImage(origin_size=np.array([ori_img.shape[1], ori_img.shape[0]]),
+                              full_img_coor=np.array([min_x, min_y, max_x, max_y]))
+    warped_img.set_direct_img_coors(direct_img_coor=None)
+    # warped_img.full_img_coor = np.array([min_x, min_y, max_x, max_y])
+    # warped_img.origin_size = np.array([ori_img.shape[1], ori_img.shape[0]])
+
+
+
 
 
