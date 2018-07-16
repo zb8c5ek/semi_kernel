@@ -118,11 +118,9 @@ def warping_with_given_homography(ori_img, H, preserve, interpolation, cuda=True
     if cuda:
         coordinates_PT = pt.from_numpy(cartesian_coordinates).half().cuda()
         H_PT = pt.from_numpy(H).half().cuda()
-        H_inv_PT = pt.from_numpy(H_PT).half().cuda()
     else:
         coordinates_PT = pt.from_numpy(cartesian_coordinates).half()
         H_PT = pt.from_numpy(H).half()
-        H_inv_PT = pt.from_numpy(H_PT).half()
 
     # ---------- Calculate for warpped coordinates ------------ #
     temp_coordinates_PT = coordinates_PT.view(coordinates_PT.size(0)*coordinates_PT.size(1), 3).unsqueeze(-1)
@@ -152,7 +150,28 @@ def warping_with_given_homography(ori_img, H, preserve, interpolation, cuda=True
     # warped_img.full_img_coor = np.array([min_x, min_y, max_x, max_y])
     # warped_img.origin_size = np.array([ori_img.shape[1], ori_img.shape[0]])
 
+    # --------- mesh grids for tracing back the coordinates ------------ #
+    X_inv, Y_inv = mesh_xy_coordinates_of_given_2D_dimensions([max_y - min_y + 1, max_x - min_x + 1])
+    X_inv += min_x
+    Y_inv += min_y
 
+    T_inv = np.ones(X_inv.shape, dtype=np.float)
+    cartesian_coordinates_inv = np.stack([X_inv, Y_inv, T_inv], axis=-1)  # -1 means the last axis, R x C x 3
+    # --------- cast into tensor ---------- #
+    if cuda:
+        coordinates_inv_PT = pt.from_numpy(cartesian_coordinates_inv).half().cuda()
+        H_inv_PT = pt.from_numpy(H_PT).half().cuda()
+    else:
+        coordinates_inv_PT = pt.from_numpy(cartesian_coordinates_inv).half()
+        H_inv_PT = pt.from_numpy(H_PT).half()
 
+    # ---------- Calculate for warpped coordinates ------------ #
+    temp_coordinates_inv_PT = coordinates_inv_PT.view(
+        coordinates_inv_PT.size(0)*coordinates_inv_PT.size(1), 3).unsqueeze(-1)
+    coordinates_inv_PT_warped = pt.bmm(H_inv_PT.unsqueeze(0).expand(temp_coordinates_inv_PT.size(0), *H_inv_PT.size()),
+                                   temp_coordinates_inv_PT).view(*coordinates_inv_PT.size())
+
+    coordinates_inv_PT_warped[:, :, 0] /= coordinates_inv_PT_warped[:, :, -1]
+    coordinates_inv_PT_warped[:, :, 1] /= coordinates_inv_PT_warped[:, :, -1]
 
 
