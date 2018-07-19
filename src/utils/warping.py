@@ -108,6 +108,11 @@ def bilinear_warping_given_ori_img_coor_inv(ori_img, coor_inv, nan_val=255, cuda
     if valid_y_max > int(pt.max(coor_inv[:, :, 1]))+1:
         valid_y_max = int(pt.max(coor_inv[:, :, 1]))+1
 
+    if cuda:
+        temp_img_inv = pt.HalfTensor(coor_inv.shape[0], coor_inv.shape[1], 4).cuda().fill_(float('nan'))
+    else:
+        temp_img_inv = pt.HalfTensor(coor_inv.shape[0], coor_inv.shape[1], 4).fill_(float('nan'))
+
     temp_zero_index = 0 * coor_inv[:, :, 0].unsqueeze(-1)
     previous = pass
 
