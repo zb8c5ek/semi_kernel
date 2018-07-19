@@ -101,7 +101,7 @@ def bilinear_warping_given_ori_img_coor_inv(ori_img, coor_inv, nan_val=255, cuda
     valid_x_min = 0  # the values must larger or equal to this one to have valid interpolation
     valid_y_min = 0
     valid_x_max = ori_img.shape[1]-1    # the value must be smaller (not even equal) to have valid interpolation
-    valid_y_max = ori_img.shape[0]-2    # the edge does not matter anyway
+    valid_y_max = ori_img.shape[0]-1    # the edge does not matter anyway (should be -2, yet range function decrease 1)
 
     if valid_y_min < int(pt.min(coor_inv[:, :, 1])):
         valid_y_min = int(pt.min(coor_inv[:, :, 1]))
