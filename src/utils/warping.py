@@ -88,13 +88,13 @@ def mesh_xy_coordinates_of_given_2D_dimensions(dimensions):
     return X, Y
 
 
-def bilinear_warping_given_ori_img_coor_inv(ori_img, coor_inv, nan_val=255, cuda=True):
+def bilinear_warping_given_ori_img_coor_inv(ori_img, coor_inv, nan_val=None, cuda=True):
     """
     it finishes the warping by interpolates values using coordinates contained in coor_inv from the original image
     ori_img. interpolation is implemented on the formula of bilinear.
     :param ori_img: original image, in gray scale assumed
     :param coor_inv: inverse coordinates from target image, in format [h, w, 2] where [:,:,0] is x and [:,:,1] is y
-    :param nan_val: the value for unvalid coordinates
+    :param nan_val: the value for unvalid coordinates. if None then assume to be 'nan'
     :param cuda: whether perform on cuda
     :return: interpolated / warped image with the same size as coor_inv
     """
@@ -113,11 +113,21 @@ def bilinear_warping_given_ori_img_coor_inv(ori_img, coor_inv, nan_val=255, cuda
     else:
         temp_img_inv = pt.HalfTensor(coor_inv.shape[0], coor_inv.shape[1], 4).fill_(float('nan'))
 
+    valid_x_bool_map = (coor_inv[:, :, 0] >= valid_x_min) * (coor_inv[:, :, 0] < valid_x_max)
     temp_zero_index = 0 * coor_inv[:, :, 0].unsqueeze(-1)
-    previous = pass
+    previous_bool_map = coor_inv[:, :, 1] < valid_y_min
 
     for y_now in np.arange(valid_y_min, valid_y_max):
-        selected_y = (coor_inv[:, :, 1] >= y_now) * (coor_inv[:, :, 1] < y_now+1)
+
+        # ------ process y coordinates ------
+        term_1 = 1 - previous_bool_map
+        term_2 = coor_inv < y_now + 1
+        selected_y = term_1 * term_2
+
+        previous_bool_map = term_2
+        # ------ cope with valid x coordinates ------
+
+
 
 
 def warping_with_given_homography(ori_img, H, preserve, interpolation, cuda=True):
