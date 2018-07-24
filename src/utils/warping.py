@@ -27,13 +27,14 @@ class warpingImage(object):
     where the corresponding image is cropped.
     coordinates are in the format of [min_x, min_y, max_x, max_y]
     """
+
     def __init__(self, origin_size=None, full_img_coor=None):
-        self.full_img = None     # preserve the full original image in warped image plane
-        self.full_img_coor = None    # in int
-        self.direct_img = None   # the image with the same center and same size as original image
+        self.full_img = None  # preserve the full original image in warped image plane
+        self.full_img_coor = None  # in int
+        self.direct_img = None  # the image with the same center and same size as original image
         self.direct_img_coor = None  # in int
-        self.roi_img = None      # the image with ROI region preserved
-        self.roi_img_coor = None     # in int
+        self.roi_img = None  # the image with ROI region preserved
+        self.roi_img_coor = None  # in int
         self.origin_size = None
 
         if full_img_coor is not None:
@@ -65,7 +66,6 @@ class warpingImage(object):
                                                  center_y - np.int(np.floor(self.origin_size[1] / 2)),
                                                  center_x + np.int(np.floor(self.origin_size[0] / 2)) - 1,
                                                  center_y + np.int(np.floor(self.origin_size[1] / 2)) - 1])
-
 
 
 def mesh_xy_coordinates_of_given_2D_dimensions(dimensions):
@@ -100,13 +100,13 @@ def bilinear_warping_given_ori_img_coor_inv(ori_img, coor_inv, nan_val=None, cud
     """
     valid_x_min = 0  # the values must larger or equal to this one to have valid interpolation
     valid_y_min = 0
-    valid_x_max = ori_img.shape[1]-1    # the value must be smaller (not even equal) to have valid interpolation
-    valid_y_max = ori_img.shape[0]-1    # the edge does not matter anyway (should be -2, yet range function decrease 1)
+    valid_x_max = ori_img.shape[1] - 1  # the value must be smaller (not even equal) to have valid interpolation
+    valid_y_max = ori_img.shape[0] - 1  # the edge does not matter anyway (should be -2, yet range function decrease 1)
 
     if valid_y_min < int(pt.min(coor_inv[:, :, 1])):
         valid_y_min = int(pt.min(coor_inv[:, :, 1]))
-    if valid_y_max > int(pt.max(coor_inv[:, :, 1]))+1:  # include the row after the floor operation
-        valid_y_max = int(pt.max(coor_inv[:, :, 1]))+1
+    if valid_y_max > int(pt.max(coor_inv[:, :, 1])) + 1:  # include the row after the floor operation
+        valid_y_max = int(pt.max(coor_inv[:, :, 1])) + 1
 
     if cuda:
         temp_img_inv = pt.HalfTensor(coor_inv.shape[0], coor_inv.shape[1], 4).cuda().fill_(float('nan'))
@@ -118,16 +118,32 @@ def bilinear_warping_given_ori_img_coor_inv(ori_img, coor_inv, nan_val=None, cud
     previous_bool_map = coor_inv[:, :, 1] < valid_y_min
 
     for y_now in np.arange(valid_y_min, valid_y_max):
-
         # ------ process y coordinates ------
+
         term_1 = 1 - previous_bool_map
         term_2 = coor_inv < y_now + 1
         selected_y = term_1 * term_2
 
         previous_bool_map = term_2
+
         # ------ cope with valid x coordinates ------
 
+        selected_xy_bool_map = (selected_y * valid_x_bool_map).unsqueeze_(-1)
+        selected_xy_index = pt.cat((selected_xy_bool_map, temp_zero_index), -1)
+        selected_xy_float = coor_inv[selected_xy_index]
 
+        # ------ generate index tensor for temp volume and collect corresponding values ------
+
+        selected_xy_floor_int = selected_xy_float.floor().int()
+        # TODO: check gather in Qua-interp
+        temp_img_inv[pt.cat((selected_xy_bool_map, temp_zero_index, temp_zero_index, temp_zero_index), -1)] = pt.gather(
+            ori_img[y_now, :], 0, selected_xy_floor_int)
+        temp_img_inv[pt.cat((temp_zero_index, selected_xy_bool_map, temp_zero_index, temp_zero_index), -1)] = pt.gather(
+            ori_img[y_now + 1, :], 0, selected_xy_floor_int)
+        temp_img_inv[pt.cat((temp_zero_index, temp_zero_index, selected_xy_bool_map, temp_zero_index), -1)] = pt.gather(
+            ori_img[y_now, :], 0, selected_xy_floor_int + 1)
+        temp_img_inv[pt.cat((temp_zero_index, temp_zero_index, temp_zero_index, selected_xy_bool_map), -1)] = pt.gather(
+            ori_img[y_now + 1, :], 0, selected_xy_floor_int + 1)
 
 
 def warping_with_given_homography(ori_img, H, preserve, interpolation, cuda=True):
@@ -165,7 +181,7 @@ def warping_with_given_homography(ori_img, H, preserve, interpolation, cuda=True
         H_PT = pt.from_numpy(H).half()
 
     # ---------- Calculate for warpped coordinates ------------ #
-    temp_coordinates_PT = coordinates_PT.view(coordinates_PT.size(0)*coordinates_PT.size(1), 3).unsqueeze(-1)
+    temp_coordinates_PT = coordinates_PT.view(coordinates_PT.size(0) * coordinates_PT.size(1), 3).unsqueeze(-1)
     coordinates_PT_warped = pt.bmm(H_PT.unsqueeze(0).expand(temp_coordinates_PT.size(0), *H_PT.size()),
                                    temp_coordinates_PT).view(*coordinates_PT.size())
 
@@ -209,11 +225,9 @@ def warping_with_given_homography(ori_img, H, preserve, interpolation, cuda=True
 
     # ---------- Calculate for warpped coordinates ------------ #
     temp_coordinates_inv_PT = coordinates_inv_PT.view(
-        coordinates_inv_PT.size(0)*coordinates_inv_PT.size(1), 3).unsqueeze(-1)
+        coordinates_inv_PT.size(0) * coordinates_inv_PT.size(1), 3).unsqueeze(-1)
     coordinates_inv_PT_warped = pt.bmm(H_inv_PT.unsqueeze(0).expand(temp_coordinates_inv_PT.size(0), *H_inv_PT.size()),
-                                   temp_coordinates_inv_PT).view(*coordinates_inv_PT.size())
+                                       temp_coordinates_inv_PT).view(*coordinates_inv_PT.size())
 
     coordinates_inv_PT_warped[:, :, 0] /= coordinates_inv_PT_warped[:, :, -1]
     coordinates_inv_PT_warped[:, :, 1] /= coordinates_inv_PT_warped[:, :, -1]
-
-
