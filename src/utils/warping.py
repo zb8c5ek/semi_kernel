@@ -145,6 +145,9 @@ def bilinear_warping_given_ori_img_coor_inv(ori_img, coor_inv, nan_val=None, cud
         temp_img_inv[pt.cat((temp_zero_index, temp_zero_index, temp_zero_index, selected_xy_bool_map), -1)] = pt.gather(
             ori_img[y_now + 1, :], 0, selected_xy_floor_int + 1)
 
+        # ------ calculate residual and perform interpolation ------
+        pass
+
 
 def warping_with_given_homography(ori_img, H, preserve, interpolation, cuda=True):
     """
