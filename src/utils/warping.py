@@ -30,11 +30,11 @@ class warpingImage(object):
 
     def __init__(self, origin_size=None, full_img_coor=None):
         self.full_img = None  # preserve the full original image in warped image plane
-        self.full_img_coor = None  # in int
+        self.full_img_coor = None  # in [int]
         self.direct_img = None  # the image with the same center and same size as original image
-        self.direct_img_coor = None  # in int
+        self.direct_img_coor = None  # in [int]
         self.roi_img = None  # the image with ROI region preserved
-        self.roi_img_coor = None  # in int
+        self.roi_img_coor = None  # in [int]
         self.origin_size = None
 
         if full_img_coor is not None:
@@ -165,6 +165,7 @@ def bilinear_warping_given_ori_img_coor_inv(ori_img, coor_inv, nan_val=None, cud
         img_interp[img_interp != img_interp] = nan_val
 
     return img_interp
+
 
 def warping_with_given_homography(ori_img, H, preserve, interpolation=1, cuda=True):
     """
