@@ -108,6 +108,7 @@ def bilinear_warping_given_ori_img_coor_inv(ori_img, coor_inv, nan_val=None, cud
     if valid_y_max > int(pt.max(coor_inv[:, :, 1])) + 1:  # include the row after the floor operation
         valid_y_max = int(pt.max(coor_inv[:, :, 1])) + 1
 
+    # ------  initialize temp volume values to 'nan' so that during the calculation, invalid pixels are 'nan' ------
     if cuda:
         temp_img_inv = pt.HalfTensor(coor_inv.shape[0], coor_inv.shape[1], 4).cuda().fill_(float('nan'))
     else:
@@ -135,7 +136,7 @@ def bilinear_warping_given_ori_img_coor_inv(ori_img, coor_inv, nan_val=None, cud
         # ------ generate index tensor for temp volume and collect corresponding values ------
 
         selected_xy_floor_int = selected_xy_float.floor().int()
-        # TODO: check gather in Qua-interp
+
         temp_img_inv[pt.cat((selected_xy_bool_map, temp_zero_index, temp_zero_index, temp_zero_index), -1)] = pt.gather(
             ori_img[y_now, :], 0, selected_xy_floor_int)
         temp_img_inv[pt.cat((temp_zero_index, selected_xy_bool_map, temp_zero_index, temp_zero_index), -1)] = pt.gather(
@@ -145,11 +146,27 @@ def bilinear_warping_given_ori_img_coor_inv(ori_img, coor_inv, nan_val=None, cud
         temp_img_inv[pt.cat((temp_zero_index, temp_zero_index, temp_zero_index, selected_xy_bool_map), -1)] = pt.gather(
             ori_img[y_now + 1, :], 0, selected_xy_floor_int + 1)
 
-        # ------ calculate residual and perform interpolation ------
-        pass
+    # ------ calculate residual and perform interpolation ------
+    x_coor_inv = coor_inv[:, :, 0]
+    y_coor_inv = coor_inv[:, :, 1]
 
+    x1_residual = x_coor_inv - x_coor_inv.floor()
+    x2_residual = 1 - x1_residual
 
-def warping_with_given_homography(ori_img, H, preserve, interpolation, cuda=True):
+    y1_residual = y_coor_inv - y_coor_inv.floor()
+    y2_residual = 1 - y1_residual
+
+    img_interp = temp_img_inv[:, :, 0]*x2_residual*y2_residual + \
+                 temp_img_inv[:, :, 2]*x1_residual*y2_residual + \
+                 temp_img_inv[:, :, 1]*x2_residual*y1_residual + \
+                 temp_img_inv[:, :, 3]*x1_residual*y1_residual
+
+    if nan_val is not None:
+        img_interp[img_interp != img_interp] = nan_val
+
+    return img_interp
+
+def warping_with_given_homography(ori_img, H, preserve, interpolation=1, cuda=True):
     """
     it warps the original image to a new image plane, regarding homography H. The warping (interpolation) is carried
     out in tensor manner to get along with the boosting. As most warping function aims to preserve the 'image size',
@@ -234,3 +251,12 @@ def warping_with_given_homography(ori_img, H, preserve, interpolation, cuda=True
 
     coordinates_inv_PT_warped[:, :, 0] /= coordinates_inv_PT_warped[:, :, -1]
     coordinates_inv_PT_warped[:, :, 1] /= coordinates_inv_PT_warped[:, :, -1]
+
+    # ------ warp ------
+    if interpolation == 1:
+        warp_img = bilinear_warping_given_ori_img_coor_inv(ori_img=ori_img,
+                                                           coor_inv=coordinates_PT_warped,
+                                                           nan_val=None,
+                                                           cuda=cuda)
+
+    # ------ crop image and note down the shift ------
