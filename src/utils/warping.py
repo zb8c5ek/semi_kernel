@@ -255,6 +255,7 @@ def warping_with_given_homography(ori_img, H, preserve, interpolation=1, cuda=Tr
 
     # ------ warp ------
     if interpolation == 1:
+        #  1 for bilinear interpolation while 2 for bi-cubic
         warp_img = bilinear_warping_given_ori_img_coor_inv(ori_img=ori_img,
                                                            coor_inv=coordinates_PT_warped,
                                                            nan_val=None,
