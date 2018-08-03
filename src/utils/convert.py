@@ -16,6 +16,7 @@ Group website: http://www.esat.kuleuven.be/psi/visics
 LinkedIn: https://be.linkedin.com/in/xuanlichen
 """
 
+
 def img_double2int(img, min_in=None, max_in=None, max_int=255):
     """
     it converts img from double to int, if no min_in and max_in specified, the min and max from img will be taken.
