@@ -18,6 +18,7 @@ Group website: http://www.esat.kuleuven.be/psi/visics
 LinkedIn: https://be.linkedin.com/in/xuanlichen
 """
 
+
 class SemiKernelSGM(object):
     def __init__(self):
         """
