@@ -1,5 +1,6 @@
 import numpy as np
 import torch as pt
+import time
 import cv2  # TODO: opencv is usable yet far from flexible and well-maintained. try to self-produce corresponding functions.
 __author__ = 'Xuanli CHEN'
 """
@@ -17,14 +18,19 @@ Belgium
 Group website: http://www.esat.kuleuven.be/psi/visics
 LinkedIn: https://be.linkedin.com/in/xuanlichen
 """
-
+"""
+about evaluation:
+as stereo and structured light are sensitive to camera set-up, a full pipeline shall share the same ground. also, to
+establish a systematic analysis in the perspective of practice and convinience, all data are performed on a data set
+with our own capture, released along with the code. * some more inspirations shall come in here ...
+"""
 
 class SemiKernelSGM(object):
     def __init__(self):
         """
-        Semikernel is in its version 0.0, rectification related problem is not considered. It aims to use semi-kernel
+        Semi-kernel is in its version 0.0, rectification related problem is not considered. It aims to use semi-kernel
         techniques to achieve smoother disparity map and/or surface, with less GPU/TPU memory consumption, at the mean
-        while rapid.
+        while speed up as number of paths reduced.
         """
         # ---- basic parameters ----
         self.raw_img0 = None
@@ -297,11 +303,11 @@ class SemiKernelSGM(object):
                            dtype=np.float32)
 
         if cuda:
-            pad_img_pt = torch.from_numpy(pad_img).cuda()
-            census_img = torch.cuda.ByteTensor(window_w * window_h, img.shape[0], img.shape[1]).zero_()
+            pad_img_pt = pt.from_numpy(pad_img).cuda()
+            census_img = pt.cuda.ByteTensor(window_w * window_h, img.shape[0], img.shape[1]).zero_()
         else:
-            pad_img_pt = torch.from_numpy(pad_img)
-            census_img = torch.ByteTensor(window_w * window_h, img.shape[0], img.shape[1]).zero_()
+            pad_img_pt = pt.from_numpy(pad_img)
+            census_img = pt.ByteTensor(window_w * window_h, img.shape[0], img.shape[1]).zero_()
         if cuda:
             census_img = census_img.cuda()
 
