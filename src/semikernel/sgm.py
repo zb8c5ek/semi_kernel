@@ -19,11 +19,18 @@ Group website: http://www.esat.kuleuven.be/psi/visics
 LinkedIn: https://be.linkedin.com/in/xuanlichen
 """
 """
+author notes
+
 about evaluation:
 as stereo and structured light are sensitive to camera set-up, a full pipeline shall share the same ground. also, to
 establish a systematic analysis in the perspective of practice and convinience, all data are performed on a data set
 with our own capture, released along with the code. * some more inspirations shall come in here ...
+
+engineering novelty has been long under-estimated since the traditional hardware did not revolt for long. yet we are
+at a tide of era in which tensor computation is becoming very affordable and accessible, thanks to the pursue made by
+deep learning community.
 """
+
 
 class SemiKernelSGM(object):
     def __init__(self):
