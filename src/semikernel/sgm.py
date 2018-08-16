@@ -58,9 +58,9 @@ class SemiKernelSGM(object):
         self.census_img1 = None
 
         self.path_num = 1  # Implementing only one path for the moment (horizontal one, later the vertical one)
-        self.P_init = 0
-        self.P_gap = 128
-        self.P = np.array([4, 8, 16, 32, 64])
+        # self.P_init = 0
+        # self.P_gap = 128  #P[0] = P_init, P[-1] = P_gap, as in journal
+        self.P = np.array([0, 16, 64])
         self.number_of_neighbours_depth_aggregation = 2 + 2 * len(self.P)
         self.W = np.array([])   # TODO: set the weighting array, and determine the weighting number
         self.number_of_neighbours_space_weighting = 8
@@ -183,24 +183,24 @@ class SemiKernelSGM(object):
         print("Disparity parameters are re-set:  d_min: %i, d_max: %i, disp_num: %i" % (self.d_min, self.d_max, self.disp_num))
         # TODO: reset the d related tensors
 
-    def set_P_sequence(self, P_init=None, P_gap=None, P=None):
+    def set_P_sequence(self, P=None):
         """
         it sets values of P. Once the values are reset, the temp function shall be re-initialized. Also, the
         attribute describing the number of neighbours in depth aggregation require update.
-        :param P_init: the penalty parameter when disparity shift is zero
-        :param P_gap: the penalty parameter when disparity is assumed to be dis-continued.
-        :param P: a vector of p values regarding different level of dis-continuity.
+        # :param P_init: the penalty parameter when disparity shift is zero
+        # :param P_gap: the penalty parameter when disparity is assumed to be dis-continued.
+        :param P: a vector of p values regarding different level of dis-continuity. P[0] = P_init, P[-1] = P_gap, hence
+        the P_init and P_gap is canceled.
         :return: None
         """
-        if P_init is not None:
-            self.P_init = P_init
-        if P_gap is not None:
-            self.P_gap = P_gap
+        # if P_init is not None:
+        #     self.P_init = P_init
+        # if P_gap is not None:
+        #     self.P_gap = P_gap
         if P is not None:
             self.P = P
-            self.number_of_neighbours_depth_aggregation = 2 + len(P) * 2
-        print("P is updated: P_init: %.4f, P_gap: %.4f, P: %s, #P: %i" % (self.P_init, self.P_gap, str(self.P),
-                                                                          self.number_of_neighbours_depth_aggregation))
+            self.number_of_neighbours_depth_aggregation = len(P) * 2 - 2
+        print("P is updated: P: %s, #P: %i" % (str(self.P), self.number_of_neighbours_depth_aggregation))
         # TODO: reset the related tensors if needed.
 
     def compute_unary_cost(self, census_window_size=(7, 9), r=None, R=None):
@@ -328,4 +328,55 @@ class SemiKernelSGM(object):
                 counter_channel += 1
 
         return census_img
+
+    def get_simplified_pad_parameter(self):
+        """
+        return dp, hp, wp from self.disp_pad / height_pad / width_pad
+        :return: dp, hp, wp
+        """
+        dp = self.disp_pad
+        hp = self.height_pad
+        wp = self.width_pad
+        return dp, hp, wp
+
+    def L_tensor_extractor_into_corresponding_temp_tensor(self, ij, r, d_shift=0, h_shift=0, w_shift=0):
+        """
+        this function extracts the corresponding tensor from self.L, given ij and r(path_num), x_shift indicates the
+        tensor shift in these three dimensions. the one indicated with r direction (encoded as in journal), says the
+        selection of a single row / column indexed by ij, the rest two dimensions that the shift is volume shift (v2v).
+        here r and corresponding _shift indicates overlap information, therefore a double-check could be proposed to
+        avoid possible mistake, i.e. the index shifted corresponding to r shall be consistent with _shift.
+
+        one shall bear in mind, tensor manipulation extracts tensor address, therefore manipulation on extracted tensor
+        affects original tensor from whom it is extracted.
+        :param ij: index of target column / row
+        :param r: path number
+        :param d_shift: depth shift (first entry) i.e. a:-a
+        :param h_shift: height shift (first entry)
+        :param w_shift: width shift (first entry)
+        :return: extracted tensor as self.temp_*_tensor
+        """
+        dp, hp, wp = self.get_simplified_pad_parameter()
+        # ------ double check based on r and _shift ------
+        if r == 0:
+            if h_shift != -1:
+                raise ValueError("Path number r and height shift did not match !r: %i; h_shift: % i" % (r, h_shift))
+
+            # ------ process path #0 ------
+            self.temp_depth_L_vertical[r, 0, dp:-dp, wp:-wp] = \
+                self.costVolume_L[r, dp+d_shift:-dp+d_shift, ij+h_shift, wp+w_shift:-wp+w_shift] + self.P[0]
+
+            for p in np.arange(1, len(P)-1):
+
+
+
+    def depth_slope_cost_calculation(self, ij, r):
+        """
+        calculate the depth related cost term in semi-kernel SGM formula. besides the input above, self.L, self.P are
+        inherited through class.
+        :param ij: ij parameter, indicating which row / column is being processed.
+        :param r: path number: 0 for vertical 6 etc. (cf. notebook)
+        :return: None, update in cost volume self.L
+        """
+        pass
 
