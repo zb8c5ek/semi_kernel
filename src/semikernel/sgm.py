@@ -363,19 +363,31 @@ class SemiKernelSGM(object):
                 raise ValueError("Path number r and height shift did not match !r: %i; h_shift: % i" % (r, h_shift))
 
             # ------ process path #0 ------
+            # === Case 1 ===
             self.temp_depth_L_vertical[r, 0, dp:-dp, wp:-wp] = \
                 self.costVolume_L[r, dp+d_shift:-dp+d_shift, ij+h_shift, wp+w_shift:-wp+w_shift] + self.P[0]
+            # === Case 2 ===
+            for p in np.arange(1, len(self.P)-1):
+                self.temp_depth_L_vertical[r, 2*p-1, dp:-dp, wp:-wp] = \
+                    self.costVolume_L[r, dp+p:-dp+p, ij+h_shift, wp+w_shift:-wp+w_shift] + self.P[p]
+                self.temp_depth_L_vertical[r, 2*p, dp:-dp, wp:-wp] = \
+                    self.costVolume_L[r, dp-p, -dp-p, ij+h_shift, wp+w_shift:-wp+w_shift] + self.P[p]
+            # === Case 3 ===
+            self.temp_depth_L_vertical[r, -1, dp:-dp, wp:-wp] = \
+                pt.min(self.costVolume_L[r, dp+d_shift:-dp+d_shift,
+                       ij+h_shift,
+                       wp+w_shift:-wp+w_shift],
+                       dim=0).repeat(1, self.disp_num+2*dp, 1, 1)
 
-            for p in np.arange(1, len(P)-1):
-
-
+        else:
+            raise ValueError("Path num: %i is NOT supported yet !!!" % r)
 
     def depth_slope_cost_calculation(self, ij, r):
         """
         calculate the depth related cost term in semi-kernel SGM formula. besides the input above, self.L, self.P are
         inherited through class.
         :param ij: ij parameter, indicating which row / column is being processed.
-        :param r: path number: 0 for vertical 6 etc. (cf. notebook)
+        :param r: path number: 0 for vertical 6 etc. (cf. journal)
         :return: None, update in cost volume self.L
         """
         pass
