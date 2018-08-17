@@ -354,9 +354,10 @@ class SemiKernelSGM(object):
         :param d_shift: depth shift (first entry) i.e. a:-a
         :param h_shift: height shift (first entry)
         :param w_shift: width shift (first entry)
-        :return: extracted tensor as self.temp_*_tensor
+        :return out_tensor: extracted tensor as self.temp_*_tensor size [1, 1, dp:-dp, wp/hp:-dp/hp]
         """
         dp, hp, wp = self.get_simplified_pad_parameter()
+        self.temp_depth_L_vertical[r, :, :, :].fill_(255)   #TODO: double check whehter this value is big enough
         # ------ double check based on r and _shift ------
         if r == 0:
             if h_shift != -1:
@@ -377,18 +378,33 @@ class SemiKernelSGM(object):
                 pt.min(self.costVolume_L[r, dp+d_shift:-dp+d_shift,
                        ij+h_shift,
                        wp+w_shift:-wp+w_shift],
-                       dim=0).repeat(1, self.disp_num+2*dp, 1, 1)
+                       dim=0).repeat(1, self.disp_num+2*dp, 1, 1) + self.P[-1]
 
+            out_tensor = pt.min(self.temp_depth_L_vertical[r, :, dp:-dp, wp:-wp], dim=0)
+            return out_tensor
         else:
             raise ValueError("Path num: %i is NOT supported yet !!!" % r)
 
-    def depth_slope_cost_calculation(self, ij, r):
+    def depth_slope_cost_calculation(self, ij, r, d_shift, h_shift, w_shift):
         """
         calculate the depth related cost term in semi-kernel SGM formula. besides the input above, self.L, self.P are
         inherited through class.
         :param ij: ij parameter, indicating which row / column is being processed.
         :param r: path number: 0 for vertical 6 etc. (cf. journal)
-        :return: None, update in cost volume self.L
+        :param d_shift: depth shift, depends on r, to simplify computation, shall be passed from higher function
+        :param h_shift: height shift, depends on r, to simplify computation, shall be passed from higher function
+        :param w_shift: width shift, depends on r, to simplify computation, shall be passed from higher function
+        :return: update_tensor for depth term, in order to update in global_dynamic_programming
         """
+        update_tensor = self.L_tensor_extractor_into_corresponding_temp_tensor(ij=ij, r=r,
+                                                                               d_shift=d_shift,
+                                                                               h_shift=h_shift,
+                                                                               w_shift=w_shift)
+        return update_tensor
+
+    def space_semi_kernel_cost_calculation(self, ij, r):
+        pass
+
+    def global_dynamic_programming(self):
         pass
 
