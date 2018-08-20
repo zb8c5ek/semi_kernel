@@ -58,6 +58,9 @@ class SemiKernelSGM(object):
         self.census_img1 = None
 
         self.path_num = 1  # Implementing only one path for the moment (horizontal one, later the vertical one)
+        # TODO: finalize self.shift tensor
+        # self.shift = np.zeros([2, 3])   # the shift factor, specifies d_shift, h_shift, w_shift for each path
+        # self.shift[0, :] =
         # self.P_init = 0
         # self.P_gap = 128  #P[0] = P_init, P[-1] = P_gap, as in journal
         self.P = np.array([0, 16, 64])
@@ -406,5 +409,17 @@ class SemiKernelSGM(object):
         pass
 
     def global_dynamic_programming(self):
-        pass
-
+        """
+        it performs dynamic programming, based on all the paths. the function loops over the image to acquire values in
+        the full cost volume. as paths shall be adjustable, each path shall be a call-able block and could be integrated
+        with ease e.g. the parameter passing shall be self-contained.
+        :return: None, afterwards the full cost volume shall be ready, and minimum disparity be able to extract.
+        """
+        # ----- vertical path processing -----
+        for ij in np.arange(self.height_pad, self.height_pad + self.img_dimension[0]):
+            # --- path 0 ---
+            depth_tensor_update_now = self.depth_slope_cost_calculation(ij=ij, r=0,
+                                                                        # d_shift=self.shift[0, 0],
+                                                                        # h_shift=self.shift[0, 1],
+                                                                        # w_shift=self.shift[0, 2]
+                                                                        )
