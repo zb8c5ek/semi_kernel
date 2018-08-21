@@ -58,9 +58,8 @@ class SemiKernelSGM(object):
         self.census_img1 = None
 
         self.path_num = 1  # Implementing only one path for the moment (horizontal one, later the vertical one)
-        # TODO: finalize self.shift tensor
-        # self.shift = np.zeros([2, 3])   # the shift factor, specifies d_shift, h_shift, w_shift for each path
-        # self.shift[0, :] =
+        self.shift = np.array([[-1, 0], [0, -1]])   # WARNING: only path 0 and 1 are initialised.
+
         # self.P_init = 0
         # self.P_gap = 128  #P[0] = P_init, P[-1] = P_gap, as in journal
         self.P = np.array([0, 16, 64])
@@ -342,7 +341,7 @@ class SemiKernelSGM(object):
         wp = self.width_pad
         return dp, hp, wp
 
-    def L_tensor_extractor_into_corresponding_temp_tensor(self, ij, r, d_shift=0, h_shift=0, w_shift=0):
+    def L_tensor_extractor_into_corresponding_temp_tensor(self, ij, r, h_shift=0, w_shift=0):
         """
         this function extracts the corresponding tensor from self.L, given ij and r(path_num), x_shift indicates the
         tensor shift in these three dimensions. the one indicated with r direction (encoded as in journal), says the
@@ -354,10 +353,9 @@ class SemiKernelSGM(object):
         affects original tensor from whom it is extracted.
         :param ij: index of target column / row
         :param r: path number
-        :param d_shift: depth shift (first entry) i.e. a:-a
-        :param h_shift: height shift (first entry)
-        :param w_shift: width shift (first entry)
-        :return out_tensor: extracted tensor as self.temp_*_tensor size [1, 1, dp:-dp, wp/hp:-dp/hp]
+        :param h_shift: height shift (first entry)  t': hp:-hp = t: hp+hs:-hp+hs
+        :param w_shift: width shift (first entry)   t': wp:-wp = t: wp+ws:-wp+ws
+        :return out_tensor: extracted tensor as self.temp_*_tensor size [1, 1, dp:-dp, wp/hp:-wp/hp]
         """
         dp, hp, wp = self.get_simplified_pad_parameter()
         self.temp_depth_L_vertical[r, :, :, :].fill_(255)   #TODO: double check whehter this value is big enough
@@ -369,16 +367,17 @@ class SemiKernelSGM(object):
             # ------ process path #0 ------
             # === Case 1 ===
             self.temp_depth_L_vertical[r, 0, dp:-dp, wp:-wp] = \
-                self.costVolume_L[r, dp+d_shift:-dp+d_shift, ij+h_shift, wp+w_shift:-wp+w_shift] + self.P[0]
+                self.costVolume_L[r, dp:-dp, ij+h_shift, wp+w_shift:-wp+w_shift] + self.P[0]
             # === Case 2 ===
             for p in np.arange(1, len(self.P)-1):
+                # WARNING: the disparity might always increase instead of decrease ... double check with SGM paper
                 self.temp_depth_L_vertical[r, 2*p-1, dp:-dp, wp:-wp] = \
                     self.costVolume_L[r, dp+p:-dp+p, ij+h_shift, wp+w_shift:-wp+w_shift] + self.P[p]
                 self.temp_depth_L_vertical[r, 2*p, dp:-dp, wp:-wp] = \
                     self.costVolume_L[r, dp-p, -dp-p, ij+h_shift, wp+w_shift:-wp+w_shift] + self.P[p]
             # === Case 3 ===
             self.temp_depth_L_vertical[r, -1, dp:-dp, wp:-wp] = \
-                pt.min(self.costVolume_L[r, dp+d_shift:-dp+d_shift,
+                pt.min(self.costVolume_L[r, dp:-dp,
                        ij+h_shift,
                        wp+w_shift:-wp+w_shift],
                        dim=0).repeat(1, self.disp_num+2*dp, 1, 1) + self.P[-1]
@@ -400,7 +399,6 @@ class SemiKernelSGM(object):
         :return: update_tensor for depth term, in order to update in global_dynamic_programming
         """
         update_tensor = self.L_tensor_extractor_into_corresponding_temp_tensor(ij=ij, r=r,
-                                                                               d_shift=d_shift,
                                                                                h_shift=h_shift,
                                                                                w_shift=w_shift)
         return update_tensor
@@ -418,8 +416,8 @@ class SemiKernelSGM(object):
         # ----- vertical path processing -----
         for ij in np.arange(self.height_pad, self.height_pad + self.img_dimension[0]):
             # --- path 0 ---
+
             depth_tensor_update_now = self.depth_slope_cost_calculation(ij=ij, r=0,
-                                                                        # d_shift=self.shift[0, 0],
-                                                                        # h_shift=self.shift[0, 1],
-                                                                        # w_shift=self.shift[0, 2]
+                                                                        h_shift=self.shift[0, 1],
+                                                                        w_shift=self.shift[0, 2]
                                                                         )
