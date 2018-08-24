@@ -387,13 +387,12 @@ class SemiKernelSGM(object):
         else:
             raise ValueError("Path num: %i is NOT supported yet !!!" % r)
 
-    def depth_slope_cost_calculation(self, ij, r, d_shift, h_shift, w_shift):
+    def depth_slope_cost_calculation(self, ij, r, h_shift, w_shift):
         """
         calculate the depth related cost term in semi-kernel SGM formula. besides the input above, self.L, self.P are
         inherited through class.
         :param ij: ij parameter, indicating which row / column is being processed.
         :param r: path number: 0 for vertical 6 etc. (cf. journal)
-        :param d_shift: depth shift, depends on r, to simplify computation, shall be passed from higher function
         :param h_shift: height shift, depends on r, to simplify computation, shall be passed from higher function
         :param w_shift: width shift, depends on r, to simplify computation, shall be passed from higher function
         :return: update_tensor for depth term, in order to update in global_dynamic_programming
@@ -418,6 +417,6 @@ class SemiKernelSGM(object):
             # --- path 0 ---
 
             depth_tensor_update_now = self.depth_slope_cost_calculation(ij=ij, r=0,
-                                                                        h_shift=self.shift[0, 1],
-                                                                        w_shift=self.shift[0, 2]
+                                                                        h_shift=self.shift[0, 0],
+                                                                        w_shift=self.shift[0, 1]
                                                                         )
