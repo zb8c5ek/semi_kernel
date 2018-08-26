@@ -26,9 +26,9 @@ as stereo and structured light are sensitive to camera set-up, a full pipeline s
 establish a systematic analysis in the perspective of practice and convinience, all data are performed on a data set
 with our own capture, released along with the code. * some more inspirations shall come in here ...
 
-engineering novelty has been long under-estimated since the traditional hardware did not revolt for long. yet we are
-at a tide of era in which tensor computation is becoming very affordable and accessible, thanks to the pursue made by
-deep learning community.
+engineering novelty has been long under-estimated since the traditional hardware structure did not revolt for long. yet 
+we are at a tide of era in which tensor computation is becoming very affordable and accessible, thanks to the pursue 
+made by tensor community.
 """
 
 
@@ -100,7 +100,7 @@ class SemiKernelSGM(object):
         self.raw_img_dimension = img0.shape
 
         if self.scaling != 1:
-
+            # TODO: replace this cv2 resize function
             self.img0 = cv2.resize(img0, (0, 0), fx=self.scaling, fy=self.scaling)
             self.img1 = cv2.resize(img1, (0, 0), fx=self.scaling, fy=self.scaling)
         else:
@@ -108,6 +108,17 @@ class SemiKernelSGM(object):
             self.img1 = self.raw_img1.copy()
 
         self.img_dimension = self.img0.shape
+
+    def initialise_space_kernel_weights_using_bilateral_kernel(self, theta_d, theta_r):
+        """
+        it initialises the bilateral weight, according to given images. the result bilateral weight would be in the size
+        as h x w x n (where n is the number of spatial neighbors in account). theta_d and theta_r is used to determine
+        the kernel size, also the kernel shape. optimum parameter shall coop with application itself.
+        :param theta_d: spatial based variance term
+        :param theta_r: intensity based variance term
+        :return: update to self.space_weight_kernel *h x w x n, update to self.ts_vs_list, update to self.ts_vs_distance
+        """
+        pass
 
     def initialize_GPU_storage(self):
         """
