@@ -34,7 +34,8 @@ def gaussian_filter(ori_img, theta, cuda=True, crop_size=None, return_kernel=Fal
     :return: filtered image: and (optional) applied gaussian kernel, both in np.array format.
     """
     # ----- determine kernel size -----
-    kernel_size = np.array(2*np.ceil(3*[theta, theta]), dtype=np.int) + 1  # kernel_size in (x_size, y_size) format
+    kernel_size = np.array(2*np.ceil(3*[theta, theta]), dtype=np.int) + 1
+        # kernel_size in (x_size, y_size) format
 
     # ----- generate gaussian kernel -----
     center_shift = np.floor(kernel_size / 2)
@@ -43,10 +44,6 @@ def gaussian_filter(ori_img, theta, cuda=True, crop_size=None, return_kernel=Fal
     kernel_mesh[1] -= center_shift[1]
 
     gaussian_kernel = np.exp(-np.power(kernel_mesh[0]/theta, 2)/2 - np.power(kernel_mesh[1]/theta, 2)/2)
-    # TODO: check whether a regulation to 1sum is necessary
-
-    # ----- generate shift list and stacking image shifts -----
-
 
 
 def bilaterial_filtering():
