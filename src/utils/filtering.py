@@ -19,6 +19,43 @@ LinkedIn: https://be.linkedin.com/in/xuanlichen
 """
 
 
+def coop_square_kernel_with_shifted_image_stacks(ori_img, kernel, kernel_mesh=None, cuda=True):
+    """
+    it is a sub-function for function filtering.gaussian_filter. this function applied the kernel weights, and using
+    i) bmm to multiply the weights for shifted image stacks (instead of searching for neighbor or convolution).
+    :param ori_img: the image to be filtered
+    :param kernel: kernel to apply on the image. kernel size must be odd in both dimensions.
+    :param kernel_mesh: the mesh coordinates in (x,y) of the kernel, if not given then generate here.
+    :param cuda: must be True
+    :return: filtered image in its original format
+    """
+    if cuda is not True:
+        raise ValueError("CUDA is required !")
+    if (kernel.shape[0]%2==0) or (kernel.shape[1]%2==0):
+        raise ValueError("Kernel size must be ODD in all dimensions.")
+    kernel_size = kernel.shape
+    center_shift = int(kernel_size / 2)
+
+    # ------ process shifted image s stack ------
+    space_shift_list_primary =np.zeros([kernel_size[0]*kernel_size[1], 2])
+    if kernel_mesh is None:
+        kernel_mesh = generate_kernel_mesh(kernel_size)
+
+
+def generate_kernel_mesh(kernel_size):
+    """
+    it generates the kernel mesh of given kernel size. the kernel_size must be ODD number in all dimensions.
+    :param kernel_size: np.array, a kernel_size describe a kernel in [#rows, #columns] manner
+    :return: kernel mesh in format [mesh_x, mesh_y]
+    """
+    if (kernel_size[0]%2==0) or (kernel_size[1]%2==0):
+        raise ValueError("Kernel size must be ODD in all dimensions.")
+    center_shift = np.floor(kernel_size / 2)
+    kernel_mesh = mesh_xy_coordinates_of_given_2D_dimensions(kernel_size)
+    kernel_mesh[0] -= center_shift[0]
+    kernel_mesh[1] -= center_shift[1]
+    return kernel_mesh
+
 def gaussian_filter(ori_img, theta, cuda=True, crop_size=None, return_kernel=False):
     """
     * this function is implemented in tensor stacking manner.
@@ -38,13 +75,18 @@ def gaussian_filter(ori_img, theta, cuda=True, crop_size=None, return_kernel=Fal
         # kernel_size in (x_size, y_size) format
 
     # ----- generate gaussian kernel -----
-    center_shift = np.floor(kernel_size / 2)
-    kernel_mesh = mesh_xy_coordinates_of_given_2D_dimensions(kernel_size)
-    kernel_mesh[0] -= center_shift[0]
-    kernel_mesh[1] -= center_shift[1]
+    # center_shift = np.floor(kernel_size / 2)
+    # kernel_mesh = mesh_xy_coordinates_of_given_2D_dimensions(kernel_size)
+    # kernel_mesh[0] -= center_shift[0]
+    # kernel_mesh[1] -= center_shift[1]
+    kernel_mesh = generate_kernel_mesh(kernel_size)
 
     gaussian_kernel = np.exp(-np.power(kernel_mesh[0]/theta, 2)/2 - np.power(kernel_mesh[1]/theta, 2)/2)
+    # ----- generate corresponding [hs, vs] list -----
+    if cuda:
 
+    else:
+        raise ValueError("CUDA-free version is not supported.")
 
 def bilaterial_filtering():
     pass
