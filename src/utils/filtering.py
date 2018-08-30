@@ -32,7 +32,7 @@ def coop_square_kernel_with_shifted_image_stacks(ori_img, kernel, kernel_mesh=No
     """
     if cuda is not True:
         raise ValueError("CUDA is required !")
-    if (kernel.shape[0]%2==0) or (kernel.shape[1]%2==0):
+    if (kernel.shape[0] % 2 == 0) or (kernel.shape[1] % 2 == 0):
         raise ValueError("Kernel size must be ODD in all dimensions.")
     kernel_size = kernel.shape
     num_kernel_instance = kernel_size[0]*kernel_size[1]
