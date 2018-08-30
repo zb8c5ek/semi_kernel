@@ -126,7 +126,7 @@ def gaussian_filter(ori_img, theta, cuda=True, crop_size=None, return_kernel=Fal
         return filtered_img
 
 
-def bilaterial_filtering():
+def bilaterial_filtering(ori_img, theta_d, theta_r):
     pass
 
 
