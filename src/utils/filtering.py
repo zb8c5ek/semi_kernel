@@ -20,6 +20,53 @@ LinkedIn: https://be.linkedin.com/in/xuanlichen
 """
 
 
+def generate_shifted_image_stack(ori_img, kernel_mesh=None, shift_list=False, cuda=True):
+    """
+    it generates the shifted image stack, to describe neighbors at a vast parallel manner i.e. tensor. original
+    image is shifted and stacked according to the kernel_mesh.
+    :param ori_img: original image as the source of the stack.
+    :param kernel_mesh: (mesh_x, mesh_y), which has identical size of the spatial kernel to be applied. gaussian kernel
+    for instance, or theta_d kernel for bilateral filter.
+    :param shift_list: whether to return the list of shifts. if True, y(row)_shift_list and x(column)_shift_list is
+    returned for further processing e.g. weight calculation for bilateral kernel.
+    :param cuda: True. non-cuda version is not implemented.
+    :return:
+    """
+    if cuda is not True:
+        raise ValueError("CUDA is required !")
+    kernel_size = kernel_mesh[0].shape
+    if (kernel_size[0] % 2 == 0) or (kernel_size[1] % 2 == 0):
+        raise ValueError("Kernel size must be ODD in all dimensions, double check !kernel_mesh!.")
+    # ----- prepare parameters -----
+    num_kernel_instance = kernel_size[0]*kernel_size[1]
+    center_shift = int(kernel_size / 2)
+    hp = wp = center_shift
+
+    hs_matrix = kernel_mesh[1]
+    ws_matrix = kernel_mesh[0]
+
+    ys_flatten = hs_matrix.flatten(order='C')
+    xs_flatten = ws_matrix.flatten(order='C')
+    # ----- move original image to cuda and get padded -----
+    padded_ori_img_cuda = pt.from_numpy(np.pad(ori_img,
+                                               pad_width=((hp, hp), (wp, wp)),
+                                               mode='constant',
+                                               constant_values=((0, 0), (0, 0)))).half().cuda()
+    # ----- initialize storage of shift_image_stack -----
+    shift_img_stack = pt.cuda.HalfTensor(ori_img.shape[0],
+                                         ori_img.shape[1],
+                                         num_kernel_instance).fill_(0)
+
+    # ----- generate the shift_img_stack -----
+    for i in np.arange(num_kernel_instance):
+        shift_img_stack[:, :, i] = padded_ori_img_cuda[hp+ys_flatten[i]:-hp+ys_flatten[i],
+                                   wp+xs_flatten[i]:-wp+xs_flatten[i]]
+    if shift_list:
+        return shift_img_stack, ys_flatten, xs_flatten
+    else:
+        return shift_img_stack
+
+
 def coop_square_kernel_with_shifted_image_stacks(ori_img, kernel, kernel_mesh=None,
                                                  kernel_norm=False,
                                                  cuda=True):
@@ -41,42 +88,22 @@ def coop_square_kernel_with_shifted_image_stacks(ori_img, kernel, kernel_mesh=No
         raise ValueError("CUDA is required !")
     if (kernel.shape[0] % 2 == 0) or (kernel.shape[1] % 2 == 0):
         raise ValueError("Kernel size must be ODD in all dimensions.")
-    kernel_size = kernel.shape
-    num_kernel_instance = kernel_size[0]*kernel_size[1]
-    center_shift = int(kernel_size / 2)
-    hp = wp = center_shift
     # ------ process shifted image s stack ------
     # space_shift_list_primary =np.zeros([num_kernel_instance, 2])
     if kernel_mesh is None:
-        kernel_mesh = generate_kernel_mesh(kernel_size)
-    hs_matrix = kernel_mesh[1]
-    ws_matrix = kernel_mesh[0]
-
-    kernel_flatten = kernel.flatten(order='C')
-    ys_flatten = hs_matrix.flatten(order='C')
-    xs_flatten = ws_matrix.flatten(order='C')
-
-    padded_ori_img_cuda = pt.from_numpy(np.pad(ori_img,
-                                               pad_width=((hp, hp), (wp, wp)),
-                                               mode='constant',
-                                               constant_values=((0,0),(0,0)))).half().cuda()
-
-    shift_img_stack = pt.cuda.HalfTensor(1,
-                                         kernel_size[0]*kernel_size[1],
-                                         ori_img.shape[0]+2*hp,
-                                         ori_img.shape[1]+2*wp).fill_(0)
-
-    for i in np.arange(num_kernel_instance):
-        shift_img_stack[0, i, hp:-hp, wp:-wp] = padded_ori_img_cuda[hp+ys_flatten[i]:-hp+ys_flatten[i],
-                                                wp+xs_flatten[i]:-wp+xs_flatten[i]]
+        kernel_mesh = generate_kernel_mesh(kernel.shape)
+    shifted_img_stack = generate_shifted_image_stack(ori_img=ori_img,
+                                                     kernel_mesh=kernel_mesh,
+                                                     shift_list=False, cuda=cuda)
     # for (hs, ws) in zip(ys_flatten, xs_flatten):  --> the grammar to iterate two variables simultaneously.
     # ----- adjust size and apply matrix multiplication to get the product -----
     #   WARNING: the size of tensors shall be handled with extreme caution !!!
+    kernel_flatten = kernel.flatten(order='C')
     if kernel_norm:
         kernel_flatten = kernel_flatten / np.sum(kernel_flatten)
     kernel_flatten_cuda = pt.from_numpy(kernel_flatten).half().cuda()
-    filtered_img_stack = pt.matmul(shift_img_stack, kernel_flatten_cuda)
-    filtered_img_cuda = pt.sum(filtered_img_stack[0, :, :, :], 0)
+    filtered_img_stack = pt.matmul(shifted_img_stack, kernel_flatten_cuda)
+    filtered_img_cuda = pt.sum(filtered_img_stack, 2)
     raw_filtered_img = filtered_img_cuda.cpu().float().numpy()
 
     # ----- return as the same data type as the input image e.g. float or int -----
@@ -91,7 +118,7 @@ def generate_kernel_mesh(kernel_size):
     :param kernel_size: np.array, a kernel_size describe a kernel in [#rows, #columns] manner
     :return: kernel mesh in format [mesh_x, mesh_y]
     """
-    if (kernel_size[0]%2==0) or (kernel_size[1]%2==0):
+    if (kernel_size[0] % 2 == 0) or (kernel_size[1] % 2 == 0):
         raise ValueError("Kernel size must be ODD in all dimensions.")
     center_shift = np.floor(kernel_size / 2)
     kernel_mesh = mesh_xy_coordinates_of_given_2D_dimensions(kernel_size)
@@ -116,7 +143,7 @@ def gaussian_filter(ori_img, theta, cuda=True, crop_size=None, return_kernel=Fal
     """
     # ----- determine kernel size -----
     kernel_size = np.array(2*np.ceil(3*[theta, theta]), dtype=np.int) + 1
-        # kernel_size in (x_size, y_size) format
+    # kernel_size in (y_size, x_size) format
     # ----- generate gaussian kernel -----
     kernel_mesh = generate_kernel_mesh(kernel_size)
 
@@ -136,8 +163,31 @@ def gaussian_filter(ori_img, theta, cuda=True, crop_size=None, return_kernel=Fal
         return filtered_img
 
 
-def bilaterial_filtering(ori_img, theta_d, theta_r, cuda=True):
-    pass
+def bilateral_filtering_using_shifted_image_stacks(ori_img, theta_d, theta_r, cuda=True):
+    """
+    bilateral filtering is implemented in shifted image stacks manner (shifted tensor). different from filtering using
+    a fixed square kernels, bilateral filter has different weights at each pixel. theta_d, which is a spatial gaussian
+    kernel, is used to determine the size of the bilateral kernel, while theta_r describes the weights distribution
+    within intensity channel.
+    :param ori_img: the image to be filtered, in np.array format, both int and float are supported.
+    :param theta_d: variance of spatial gaussian kernel c.f. journal for concrete definition
+    :param theta_r: variance of intensity gaussian kernel
+    :param cuda: True, none-cuda version is not implemented.
+    :return: filtered image, in np.array format and the same data type (dtype)
+    """
+    # ----- determine kernel size -----
+    kernel_size = np.array(2*np.ceil(3*[theta_d, theta_d]), dtype=np.int) + 1
+    # ----- generate shifted image stack -----
+    kernel_mesh = generate_kernel_mesh(kernel_size)
+    shifted_img_stack, ys_list, xs_list = generate_shifted_image_stack(ori_img=ori_img,
+                                                                       kernel_mesh=kernel_mesh,
+                                                                       shift_list=True,
+                                                                       cuda=cuda)
+    # ----- calculate kernel tensor -----
+    !!! use the double loop, i and end - i, and the middle one is the 0 one
+    for i in np.arange(len(ys_list)):
+        exp_term_1 = ys_list[i] * ys_list[i] + xs_list[i] * xs_list[i] / (2 * theta_d *theta_d)
+        exp_term_2 =
 
 
 def median_filtering():
