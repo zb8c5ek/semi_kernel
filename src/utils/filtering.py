@@ -20,13 +20,20 @@ LinkedIn: https://be.linkedin.com/in/xuanlichen
 """
 
 
-def coop_square_kernel_with_shifted_image_stacks(ori_img, kernel, kernel_mesh=None, cuda=True):
+def coop_square_kernel_with_shifted_image_stacks(ori_img, kernel, kernel_mesh=None,
+                                                 kernel_norm=False,
+                                                 cuda=True):
     """
     it is a sub-function for function filtering.gaussian_filter. this function applied the kernel weights, and using
     i) bmm to multiply the weights for shifted image stacks (instead of searching for neighbor or convolution).
     :param ori_img: the image to be filtered
     :param kernel: kernel to apply on the image. kernel size must be odd in both dimensions.
     :param kernel_mesh: the mesh coordinates in (x,y) of the kernel, if not given then generate here.
+    :param kernel_norm: if True, the kernel is normalised so that the weight is exactly sum to 1, apply to location
+    invariant kernels e.g. gaussian kernel.
+    # :param kernel_space_norm: if True, the kernel at each entry is normalized so that the sum would be 1. this
+    # parameter is different from 'kernel_norm', as for kernels which are location dependent e.g. bilateral filter,
+    # the normalisation shall be performed differently at each last dimension instance.
     :param cuda: must be True
     :return: filtered image in its original format
     """
@@ -65,10 +72,13 @@ def coop_square_kernel_with_shifted_image_stacks(ori_img, kernel, kernel_mesh=No
     # for (hs, ws) in zip(ys_flatten, xs_flatten):  --> the grammar to iterate two variables simultaneously.
     # ----- adjust size and apply matrix multiplication to get the product -----
     #   WARNING: the size of tensors shall be handled with extreme caution !!!
+    if kernel_norm:
+        kernel_flatten = kernel_flatten / np.sum(kernel_flatten)
     kernel_flatten_cuda = pt.from_numpy(kernel_flatten).half().cuda()
     filtered_img_stack = pt.matmul(shift_img_stack, kernel_flatten_cuda)
     filtered_img_cuda = pt.sum(filtered_img_stack[0, :, :, :], 0)
     raw_filtered_img = filtered_img_cuda.cpu().float().numpy()
+
     # ----- return as the same data type as the input image e.g. float or int -----
     filtered_img = raw_filtered_img.astype(ori_img.dtype)
 
@@ -126,7 +136,7 @@ def gaussian_filter(ori_img, theta, cuda=True, crop_size=None, return_kernel=Fal
         return filtered_img
 
 
-def bilaterial_filtering(ori_img, theta_d, theta_r):
+def bilaterial_filtering(ori_img, theta_d, theta_r, cuda=True):
     pass
 
 
