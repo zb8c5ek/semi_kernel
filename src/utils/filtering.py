@@ -175,19 +175,42 @@ def bilateral_filtering_using_shifted_image_stacks(ori_img, theta_d, theta_r, cu
     :param cuda: True, none-cuda version is not implemented.
     :return: filtered image, in np.array format and the same data type (dtype)
     """
-    # ----- determine kernel size -----
+    # ===== determine kernel size =====
     kernel_size = np.array(2*np.ceil(3*[theta_d, theta_d]), dtype=np.int) + 1
-    # ----- generate shifted image stack -----
+    # ===== generate shifted image stack =====
     kernel_mesh = generate_kernel_mesh(kernel_size)
     shifted_img_stack, ys_list, xs_list = generate_shifted_image_stack(ori_img=ori_img,
                                                                        kernel_mesh=kernel_mesh,
                                                                        shift_list=True,
                                                                        cuda=cuda)
-    # ----- calculate kernel tensor -----
-    !!! use the double loop, i and end - i, and the middle one is the 0 one
-    for i in np.arange(len(ys_list)):
-        exp_term_1 = ys_list[i] * ys_list[i] + xs_list[i] * xs_list[i] / (2 * theta_d *theta_d)
-        exp_term_2 =
+    # ===== calculate kernel tensor =====
+    midway = int(len(ys_list) / 2) + 1
+    if (ys_list[midway] != 0) or (xs_list[midway] != 0):
+        raise ValueError("Mid-way check does not satisfied, which shall both be 0! ys[midway]: %i, xs[midway]: %i"
+                         % (ys_list[midway], xs_list[midway]))
+
+    # --- generate weight tensor raw: identical to SIS ---
+    weight_tensor = shifted_img_stack.clone()
+    ori_img_cuda = weight_tensor[midway, :, :]
+    # ---exp_term1---
+    exp_term1_np = (np.power(ys_list, 2) + np.power(xs_list, 2)) / (2*theta_d*theta_d)
+    # ---exp_term2: using PyTorch broadcasting semantics---
+    weight_tensor -= ori_img_cuda
+    weight_tensor = (weight_tensor / (2*theta_r*theta_r)).abs_()
+    # --- cast term1 into pt format for broad casting ---
+    exp_term1_pt = pt.from_numpy(exp_term1_np).half().cuda().view(-1)
+    weight_tensor += exp_term1_pt
+    # --- take the exp() ---
+    weight_tensor.exp_()
+    # ===== apply filtering =====
+    numerator_tensor = (shifted_img_stack * weight_tensor).sum(-1)  # last dimension eliminated
+    denumerator_tensor = weight_tensor.sum(-1)
+    filtered_img_pt = numerator_tensor / denumerator_tensor
+    filtered_img_raw_np = filtered_img_pt.cpu().float().numpy()
+    # ===== cast into original format as ori_img ===
+    filtered_img = filtered_img_raw_np.astype(ori_img.dtype)
+
+    return filtered_img
 
 
 def median_filtering():
