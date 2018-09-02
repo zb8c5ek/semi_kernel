@@ -2,6 +2,7 @@ import numpy as np
 import torch as pt
 import time
 import cv2  # TODO: opencv is usable yet far from flexible and well-maintained. try to self-produce corresponding functions.
+from src.utils.filtering import generate_kernel_mesh
 __author__ = 'Xuanli CHEN'
 """
 Xuanli Chen
@@ -32,7 +33,7 @@ made by tensor community.
 """
 
 
-class SemiKernelSGM(object):
+class SemiKernelMatching(object):
     def __init__(self):
         """
         Semi-kernel is in its version 0.0, rectification related problem is not considered. It aims to use semi-kernel
@@ -77,6 +78,13 @@ class SemiKernelSGM(object):
         self.unary_cost_L = None
         self.unary_cost_R = None
 
+        # ===== space kernel parameters =====
+
+        self.theta_d = None
+        self.theta_r = None
+
+        # ===== padding parameters =====
+        # require reset with change of theta_d and theta_r
         self.disp_pad = 3
         self.height_pad = 2
         self.width_pad = 2
@@ -111,14 +119,24 @@ class SemiKernelSGM(object):
 
     def initialise_space_kernel_weights_using_bilateral_kernel(self, theta_d, theta_r):
         """
-        it initialises the bilateral weight, according to given images. the result bilateral weight would be in the size
-        as h x w x n (where n is the number of spatial neighbors in account). theta_d and theta_r is used to determine
+        it initialises the bilateral weight, according to given images. it also changes the padding parameter, which
+        is needed to initialize GPU storage later. the result bilateral weight would be in the size as h x w x n
+        (where n is the number of spatial neighbors in account). theta_d and theta_r are used to determine
         the kernel size, also the kernel shape. optimum parameter shall coop with application itself.
-        :param theta_d: spatial based variance term
-        :param theta_r: intensity based variance term
+
+        this determines the padding parameter.
+        :param theta_d: spatial based variance term, scalar (float or integer)
+        :param theta_r: intensity based variance term, scalar (float or integer)
         :return: update to self.space_weight_kernel *h x w x n, update to self.ts_vs_list, update to self.ts_vs_distance
         """
-        pass
+        # ===== generate semi-gaussian kernel =====
+        # --- determine kernel size ---
+        kernel_size = np.array(2 * np.ceil(3 * [theta_d, theta_d]), dtype=np.int) + 1
+        # --- generate gaussian kernel ---
+        kernel_mesh = generate_kernel_mesh(kernel_size)
+        gaussian_kernel = np.exp(-np.power(kernel_mesh[0] / theta_d, 2) / 2 - np.power(kernel_mesh[1] / theta_d, 2) / 2)
+        # --- crop into semi-kernel and normalise ---
+        ... the kernel seems to be related to the path ...
 
     def initialize_GPU_storage(self):
         """
